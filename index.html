@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conway's Game of Life</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 20px;
+            max-width: 1540px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 2em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            display: block;
+            background: #000;
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        @media (max-width: 1600px) {
+            canvas {
+                width: 100% !important;
+                height: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Conway's Game of Life</h1>
+        
+        <div class="controls">
+            <button id="playPause">⏸️ Pause</button>
+            <button id="random">🎲 Random</button>
+            <button id="clear">🗑️ Clear</button>
+            <button id="slower">🐢 Slower</button>
+            <button id="faster">🐇 Faster</button>
+        </div>
+
+        <canvas id="canvas" width="1500" height="1000"></canvas>
+
+        <div class="stats">
+            <span>Generation: <span id="generation">0</span></span>
+            <span>Living Cells: <span id="population">0</span></span>
+            <span>Speed: <span id="speed">10</span> FPS</span>
+        </div>
+
+        <div class="info">
+            💡 Cliquez sur la grille pour activer/désactiver des cellules | 
+            Règles: Une cellule vit avec 2-3 voisins, naît avec 3 voisins
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Configuration
+        const WIDTH = 1500;
+        const HEIGHT = 1000;
+        const CELL_SIZE = 5;
+        const COLS = WIDTH / CELL_SIZE;
+        const ROWS = HEIGHT / CELL_SIZE;
+        
+        let grid = [];
+        let running = true;
+        let generation = 0;
+        let fps = 10;
+        let lastUpdate = 0;
+        let mouseDown = false;
+        let lastCell = null;
+
+        // Initialize grid
+        function createGrid() {
+            grid = [];
+            for (let i = 0; i < ROWS; i++) {
+                grid[i] = [];
+                for (let j = 0; j < COLS; j++) {
+                    grid[i][j] = 0;
+                }
+            }
+        }
+
+        // Randomize grid
+        function randomizeGrid() {
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    grid[i][j] = Math.random() > 0.5 ? 1 : 0;
+                }
+            }
+            generation = 0;
+            updateStats();
+        }
+
+        // Clear grid
+        function clearGrid() {
+            createGrid();
+            generation = 0;
+            updateStats();
+            draw();
+        }
+
+        // Count neighbors
+        function countNeighbors(row, col) {
+            let count = 0;
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) continue;
+                    const r = (row + i + ROWS) % ROWS;
+                    const c = (col + j + COLS) % COLS;
+                    count += grid[r][c];
+                }
+            }
+            return count;
+        }
+
+        // Update grid
+        function updateGrid() {
+            const newGrid = [];
+            for (let i = 0; i < ROWS; i++) {
+                newGrid[i] = [];
+                for (let j = 0; j < COLS; j++) {
+                    const neighbors = countNeighbors(i, j);
+                    if (grid[i][j] === 1) {
+                        newGrid[i][j] = (neighbors === 2 || neighbors === 3) ? 1 : 0;
+                    } else {
+                        newGrid[i][j] = neighbors === 3 ? 1 : 0;
+                    }
+                }
+            }
+            grid = newGrid;
+            generation++;
+            updateStats();
+        }
+
+        // Draw grid
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    if (grid[i][j] === 1) {
+                        ctx.fillRect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    }
+                }
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            let population = 0;
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    population += grid[i][j];
+                }
+            }
+            document.getElementById('generation').textContent = generation;
+            document.getElementById('population').textContent = population;
+            document.getElementById('speed').textContent = fps;
+        }
+
+        // Main loop
+        function gameLoop(timestamp) {
+            if (running && timestamp - lastUpdate >= 1000 / fps) {
+                updateGrid();
+                draw();
+                lastUpdate = timestamp;
+            } else if (!running) {
+                draw();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Mouse handling
+        function handleMouseClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = WIDTH / rect.width;
+            const scaleY = HEIGHT / rect.height;
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
+            const col = Math.floor(x / CELL_SIZE);
+            const row = Math.floor(y / CELL_SIZE);
+            
+            if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+                const cellKey = `${row},${col}`;
+                if (cellKey !== lastCell) {
+                    grid[row][col] = 1 - grid[row][col];
+                    lastCell = cellKey;
+                    updateStats();
+                    draw();
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            mouseDown = true;
+            lastCell = null;
+            handleMouseClick(e);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (mouseDown) {
+                handleMouseClick(e);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            mouseDown = false;
+            lastCell = null;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mouseDown = false;
+            lastCell = null;
+        });
+
+        // Button controls
+        document.getElementById('playPause').addEventListener('click', function() {
+            running = !running;
+            this.textContent = running ? '⏸️ Pause' : '▶️ Play';
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('random').addEventListener('click', randomizeGrid);
+        document.getElementById('clear').addEventListener('click', clearGrid);
+        
+        document.getElementById('slower').addEventListener('click', () => {
+            fps = Math.max(1, fps - 2);
+            updateStats();
+        });
+        
+        document.getElementById('faster').addEventListener('click', () => {
+            fps = Math.min(60, fps + 2);
+            updateStats();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                document.getElementById('playPause').click();
+            } else if (e.key === 'r' || e.key === 'R') {
+                randomizeGrid();
+            } else if (e.key === 'c' || e.key === 'C') {
+                clearGrid();
+            }
+        });
+
+        // Initialize
+        createGrid();
+        randomizeGrid();
+        draw();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

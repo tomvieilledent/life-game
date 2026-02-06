@@ -114,7 +114,7 @@
             <button id="faster">🐇 Faster</button>
         </div>
 
-        <canvas id="canvas" width="1000" height="1000"></canvas>
+        <canvas id="canvas" width="500" height="500"></canvas>
 
         <div class="stats">
             <span>Generation: <span id="generation">0</span></span>
@@ -133,8 +133,8 @@
         const ctx = canvas.getContext('2d');
         
         // Configuration
-        const WIDTH = 1000;
-        const HEIGHT = 1000;
+        const WIDTH = 500;
+        const HEIGHT = 500;
         const CELL_SIZE = 1;
         const COLS = WIDTH / CELL_SIZE;
         const ROWS = HEIGHT / CELL_SIZE;
